@@ -42,7 +42,7 @@ git -C /path/to/your-project ls-files -z | (cd /path/to/your-project && tar --nu
 
 ### 3. Write your README
 
-Copy [submissions/_template/README.md](submissions/_template/README.md) into your folder and fill it in. If your project already has a `README.md`, add the four required sections to it instead: **Team**, **Summary**, **Demo**, **How to run**.
+Copy [submissions/_template/README.md](submissions/_template/README.md) into your folder and fill it in. If your project already has a `README.md`, add the three required sections to it instead: **Team**, **Summary**, **How to run**. A **Demo** section with a video or slides link is optional.
 
 ### 4. Check it
 

@@ -23,7 +23,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SLUG_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 HEADING_RE = re.compile(r"^##\s+(.*?)[\s:#]*$")
-REQUIRED_HEADINGS = ["Team", "Summary", "Demo", "How to run"]
+REQUIRED_HEADINGS = ["Team", "Summary", "How to run"]
 MB = 1024 * 1024
 MAX_FILE_BYTES = 10 * MB
 MAX_TOTAL_BYTES = 50 * MB

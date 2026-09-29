@@ -65,11 +65,16 @@ class FolderModeTest(SubmissionCase):
         self.assertOneError(self.errors(), "Rename submissions/umn-2026/team-rocket/readme.md to README.md")
 
     def test_missing_heading(self):
-        self.write("README.md", VALID_README.replace("## Demo", "Demo"))
-        self.assertOneError(self.errors(), "missing the '## Demo' section")
+        self.write("README.md", VALID_README.replace("## Summary", "Summary"))
+        self.assertOneError(self.errors(), "missing the '## Summary' section")
+
+    def test_demo_section_is_optional(self):
+        self.write("README.md", VALID_README.replace("## Demo\nhttps://example.com/video\n\n", ""))
+        self.assertNotIn("## Demo", (self.team / "README.md").read_text(encoding="utf-8"))
+        self.assertEqual(self.errors(), [])
 
     def test_headings_ignore_case_and_trailing_colon(self):
-        self.write("README.md", "## TEAM\n## summary:\n## Demo ##\n## How To Run:\n")
+        self.write("README.md", "## TEAM\n## summary ##\n## How To Run:\n")
         self.assertEqual(self.errors(), [])
 
     def test_readme_with_bom_and_crlf(self):
@@ -77,8 +82,8 @@ class FolderModeTest(SubmissionCase):
         self.assertEqual(self.errors(), [])
 
     def test_level_three_heading_does_not_count(self):
-        self.write("README.md", VALID_README.replace("## Demo", "### Demo"))
-        self.assertOneError(self.errors(), "'## Demo'")
+        self.write("README.md", VALID_README.replace("## Summary", "### Summary"))
+        self.assertOneError(self.errors(), "'## Summary'")
 
     def test_bad_team_slug(self):
         team = self.event / "Team_Rocket"

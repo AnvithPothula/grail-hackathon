@@ -12,7 +12,7 @@ Projects built at GRAIL hackathons. Each team submits its full source code as a 
 
 1. Fork this repo and create a branch.
 2. Create `submissions/<event>/<your-team-slug>/` (lowercase letters, digits and hyphens, e.g. `team-rocket`) and copy your project's code into it. Leave out `node_modules/`, virtualenvs, `.env` files, private keys, and any file over 10 MB. The folder must stay under 50 MB.
-3. Add a `README.md` based on [the template](submissions/_template/README.md) with the **Team**, **Summary**, **Demo** and **How to run** sections.
+3. Add a `README.md` based on [the template](submissions/_template/README.md) with the **Team**, **Summary** and **How to run** sections. A **Demo** section with a video or slides link is optional.
 4. Run `python3 scripts/validate_submission.py submissions/<event>/<your-team-slug>` and fix any errors.
 5. Open a pull request to `main`. One pull request per team.
 
@@ -24,7 +24,7 @@ If you use an AI coding agent (Claude Code, Codex, Cursor, …), open it in your
 
 > Read https://raw.githubusercontent.com/GRAIL-innovationai/grail-hackathon/main/skills/grail-hackathon-submit/SKILL.md and follow it to submit this project to the GRAIL hackathon.
 
-The agent asks for your team details, confirms with you before publishing anything, and opens the pull request.
+The agent asks for your team details, confirms with you before publishing anything, and opens the pull request. To try it first without publishing anything, tell the agent it's a practice run.
 
 Claude Code users can also install it as a skill, then ask Claude to submit the project:
 
