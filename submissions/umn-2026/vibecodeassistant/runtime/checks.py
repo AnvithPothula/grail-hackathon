@@ -51,7 +51,9 @@ def _page_checks(rec, link_sources) -> list:
                       "Broken navigation, no data exposure.", "Create the page or fix/remove the link."))
 
     for form in rec.get("forms", []):
-        if form["method"] == "get" and any(f["type"] == "password" for f in form["fields"]):
+        # Unnamed controls are not included in native form submission. The bundled
+        # React signup handles submission in JS and its password has no name.
+        if form["method"] == "get" and any(f["type"] == "password" and f.get("name") for f in form["fields"]):
             out.append(_f("password-in-get-form", f"Password form submits via GET on {_path(url)}", url,
                           f"Form posting to {_path(form['action'])} uses method=GET with a password field.",
                           [f"form {form['selector']}: method=get, fields={[f['name'] for f in form['fields']]}"],

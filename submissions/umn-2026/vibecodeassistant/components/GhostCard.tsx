@@ -31,8 +31,9 @@ export function GhostCard({
         <p>{ghost.currentObservation.replace(/\n/g, " · ")}</p>
       </div>
       <div className="ghost-readout action">
-        <span>NEXT ACTION</span>
-        <p>{ghost.lastAction}</p>
+        <span>{ghost.status === "complete" ? "OUTCOME" : "NEXT ACTION"}</span>
+        <p>{ghost.status === "complete" ? ghost.outcome || ghost.error || "No completion outcome recorded." : ghost.lastAction}</p>
+        {ghost.stopReason && <p>{ghost.stopReason}</p>}
       </div>
       {ghost.candidateIssues.map((i) => (
         <div className={`candidate ${i.verification || "pending"}`} key={i.id}>

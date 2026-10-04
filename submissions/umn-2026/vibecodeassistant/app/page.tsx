@@ -7,6 +7,15 @@ import { ActivityFeed } from "@/components/ActivityFeed";
 import { BugCard } from "@/components/BugCard";
 import { AuditResults } from "@/components/AuditResults";
 import { BugDetails } from "@/components/BugDetails";
+// An API route that crashes returns Next's HTML error page; parsing that blindly shows
+// `Unexpected token '<'`. Surface the status instead and point at the server log.
+async function readJson(response: Response) {
+  if ((response.headers.get("content-type") || "").includes("application/json")) return response.json();
+  throw new Error(
+    `Server error ${response.status} ${response.statusText} (expected JSON). Check the dev server terminal; ` +
+      "if two dev servers run from this folder, stop one and delete .next.",
+  );
+}
 export default function Home() {
   const [target, setTarget] = useState("http://localhost:3000/demo"),
     [run, setRun] = useState<RunState | null>(null),
@@ -27,7 +36,7 @@ export default function Home() {
   useEffect(() => {
     setTarget(location.origin + "/demo");
     fetch("/api/config")
-      .then((r) => r.json())
+      .then(readJson)
       .then(setAiConfig)
       .catch(() => {});
   }, []);
@@ -40,7 +49,16 @@ export default function Home() {
         const response = await fetch("/api/run?id=" + run.id, {
           cache: "no-store",
         });
-        const result = await response.json();
+        if (response.status === 404) {
+          if (!cancelled) {
+            setRun(null);
+            setError(
+              "The previous run is no longer available after a server restart. Click Deploy Ghosts to start a new run.",
+            );
+          }
+          return;
+        }
+        const result = await readJson(response);
         if (!response.ok) throw new Error(result.error);
         if (!cancelled) {
           setRun(result);
@@ -77,16 +95,27 @@ export default function Home() {
           goal,
         }),
       });
-      const result = await response.json();
+      const result = await readJson(response);
       if (!response.ok) throw new Error(result.error);
       setRun(result);
+      requestAnimationFrame(() =>
+        document
+          .getElementById("ghost-squad")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Deployment failed");
     } finally {
       setStarting(false);
     }
   };
-  const ghosts = run?.ghosts || createGhosts();
+  const ghosts = run?.ghosts || createGhosts().map((ghost, i) =>
+    profile === "website" ? {
+      ...ghost,
+      persona: `Website ghost ${i + 1}`,
+      goal: "A role and goal will be chosen after observing the target website.",
+    } : ghost,
+  );
   const active = run?.status === "running";
   const candidates = ghosts.reduce((n, g) => n + g.candidateIssues.length, 0);
   return (
@@ -201,6 +230,14 @@ export default function Home() {
             Include this server’s repository source analysis (not the remote
             website’s private source)
           </label>
+          {profile === "demo" && (
+            <p>
+              Demo coverage: short-password signup, cart total after removal,
+              and empty required feedback. AI choices are checked against these
+              goals; coverage interventions are labeled in the activity log.
+              Bugs still require clean-session reproduction.
+            </p>
+          )}
         </div>
         <section className="deploy-panel">
           <div className="target-field">
@@ -250,8 +287,8 @@ export default function Home() {
           </label>
           <p>
             Open visible browser windows with slower actions, one ghost at a
-            time. Windows open on the computer running the server and close when
-            the run finishes.
+            time. The background audit stays hidden. A results window stays open
+            for two minutes after completion; full reports appear below.
           </p>
         </div>
         {error && (
@@ -281,6 +318,14 @@ export default function Home() {
             {run?.watch ? " · Watch mode" : ""}
           </span>
         </div>
+        {run && (
+          <p className="provider-line">
+            {run.status === "running"
+              ? "Watch the browser ledger or follow the live activity below."
+              : `${run.bugs.length} reproduced bug(s) · ${run.findings.length} audit finding(s).`}{" "}
+            <a href="#bug-results">View results ↓</a>
+          </p>
+        )}
         <div className="stats">
           <div>
             <b>
@@ -312,7 +357,7 @@ export default function Home() {
             <span>VERIFIED BUGS</span>
           </div>
         </div>
-        <section>
+        <section id="ghost-squad">
           <div className="section-heading">
             <h2>
               <span>01</span> The ghost squad
@@ -352,7 +397,7 @@ export default function Home() {
           </div>
           <ActivityFeed activity={run?.activity || []} />
         </section>
-        <section>
+        <section id="bug-results">
           <div className="section-heading">
             <h2>
               <span>03</span> Bugs found{" "}

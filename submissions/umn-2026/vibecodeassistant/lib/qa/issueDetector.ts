@@ -37,7 +37,7 @@ export function detectIssue(
     const total = after.visibleText.match(/Total: \$(\d+\.\d{2})/);
     if (
       total &&
-      prices.length &&
+      (prices.length || after.visibleText.includes("Your cart is empty")) &&
       Math.abs(prices.reduce((a, b) => a + b, 0) - Number(total[1])) > 0.01
     ) {
       kind = "cart";

@@ -113,6 +113,10 @@ export interface GhostState {
   lastAction: string;
   progress: number;
   mode: string;
+  outcome?: string;
+  stopReason?: string;
+  visitedUrls?: string[];
+  decisionModes?: Record<string, number>;
   error?: string;
 }
 export interface VerificationRule {

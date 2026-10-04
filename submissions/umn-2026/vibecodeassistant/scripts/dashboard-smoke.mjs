@@ -20,6 +20,13 @@ try {
     .waitFor({ timeout: 180000 });
   assert.equal(await page.locator(".bug-card").count(), 3);
   assert.ok(
+    await page
+      .getByText("Signup accepts a password below the stated minimum", {
+        exact: true,
+      })
+      .isVisible(),
+  );
+  assert.ok(
     await page.getByText("Combined audit", { exact: false }).isVisible(),
   );
   assert.ok((await page.locator(".audit-finding").count()) > 0);

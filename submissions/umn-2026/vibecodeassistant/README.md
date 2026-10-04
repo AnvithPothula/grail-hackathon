@@ -6,6 +6,8 @@
 
 **Team name:** VibeCodeAssistant
 
+**Result:** 🥉 3rd place at the [Agentic AI Hackathon — GRAIL × UMN Data Science MS Program](https://cse.umn.edu/cs/events/agentic-ai-hackathon-grail-x-umn-data-science-ms-program) (event `umn-2026`).
+
 | Name | GitHub |
 |---|---|
 | Anvith Pothula | @AnvithPothula |
@@ -52,7 +54,9 @@ GhostQA creates users with distinct personalities and goals. Each receives the c
 
 This is a browser agent, not a test-case generator. In website audit mode, the model chooses one next action from the changing product state on each turn. Playwright executes it; the next decision uses the resulting observation. The model receives neither source code nor the seeded bug list. Short reasoning summaries explain decisions without requesting private chain-of-thought.
 
-Demo mode uses an explicitly labeled deterministic policy that also reads the current page to choose an action. It still drives a real browser and performs real reproduction. It is not presented as live AI reasoning, and reports are never hardcoded.
+The bundled demo has explicit coverage requirements: valid synthetic email with a password below the visible minimum, removing one of two cart products before checkout, and empty required feedback. Live AI chooses actions from current observations; if it skips these requirements, an explicitly labeled **Demo coverage guard** substitutes an observation-driven action. This is a constrained QA workflow, not unrestricted exploration. Outcomes and reports still come only from actual browser evidence and clean-session replay.
+
+Deterministic demo mode uses an explicitly labeled deterministic policy that also reads the current page to choose an action. It still drives a real browser and performs real reproduction. It is not presented as live AI reasoning, and reports are never hardcoded.
 
 ## Architecture
 
@@ -186,6 +190,7 @@ npm run build               # production build
 npm run start               # serve the production build
 npm run test:e2e            # server running, DEMO_MODE=true
 node scripts/dashboard-smoke.mjs
+node --experimental-strip-types scripts/watch-ui-smoke.ts
 npm run test:website        # server + provider key; disposable local second website
 ```
 
@@ -197,7 +202,7 @@ The server binds to `127.0.0.1`. Open `http://localhost:3000`. Only one deployme
 2. Enter a concrete objective, such as “Explore documentation and contact navigation; identify broken pages.”
 3. Confirm authorization. Leave form submission off for navigation and passive checks.
 4. Optionally allow non-destructive synthetic form testing on a test environment.
-5. Click **Deploy Ghosts**. The planner reads the current page and tailors three persona goals. Each ghost chooses one action at a time from its own current observation.
+5. Click **Deploy Ghosts**. The planner reads the current page and chooses three website-specific role names, personalities, and goals. If AI planning is unavailable, clearly labeled generic reviewers are used. Each ghost chooses one action at a time from its own current observation.
 6. Inspect the live observations/actions, reproduced bug cards, and **Combined audit**. Findings are labeled **reproduced**, **observed**, or **unverified**.
 7. Open a finding to inspect evidence and download the combined Markdown report.
 
@@ -207,7 +212,7 @@ Navigation is confined to the target origin. Private-network and metadata destin
 
 ## Demo Walkthrough
 
-**Watch Ghosts:** Enable the checkbox beside the deployment controls to watch real clicks and typing in visible Chromium windows. Watch mode runs the ghosts one at a time at a slower pace, with a banner identifying the current ghost and action. Fresh-session reproduction is visible too. Windows open on the machine running `npm run dev`, then close automatically. Keep the dashboard open to inspect the resulting reports. This requires a desktop session; leave the option off on a headless server.
+**Watch Ghosts:** Enable the checkbox beside the deployment controls to watch real clicks and typing in visible Chromium windows. Watch mode runs the ghosts one at a time at a slower pace, with a banner identifying the current ghost and action. Fresh-session reproduction is visible too. Windows open on the machine running `npm run dev`. Background crawling and goal planning use a separate headless browser. Each visible ghost shows a scrolling observation/action/check/reproduction ledger. After completion, a results window displays actual outcomes and stays open for two minutes (or until another deployment starts). Keep the dashboard open for full reports. This requires a desktop session; leave the option off on a headless server.
 
 1. Start with `DEMO_MODE=true` for a reliable presentation without a key.
 2. Open the demo separately to explore little goods, the tiny ecommerce target.
@@ -216,7 +221,7 @@ Navigation is confined to the target origin. Private-network and metadata destin
 5. Watch candidate issues enter investigation, then fresh-session reproduction.
 6. In demo mode, all three seeded issues should produce verified reports.
 7. Open a bug card to inspect the evidence and execution log.
-8. For live model decisions against the bundled demo, set `DEMO_MODE=false`, configure a provider key, and restart. For a different authorized website, choose Website audit; its goals and actions are AI-selected regardless of `DEMO_MODE`. Discovery varies with the model’s decisions.
+8. For live model decisions against the bundled demo, set `DEMO_MODE=false`, configure a provider key, and restart. For a different authorized website, choose Website audit; its goals and actions are AI-selected regardless of `DEMO_MODE`. Website discovery varies with the model’s decisions. The bundled demo’s coverage guard keeps its three boundary workflows reliable.
 
 The three intentionally flawed implementations are marked with source comments. Those comments and this README are never included in agent observations.
 
@@ -224,12 +229,12 @@ The three intentionally flawed implementations are marked with source comments. 
 
 **Deploy Ghosts now runs the compatible modules alongside the browser agents and combines their real evidence.** Their standalone demos remain available, but mock outputs from those demos are never inserted into live dashboard runs.
 
-| Contribution                                  | Dashboard integration                                                                                           | Standalone command                                         |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Anvith — `runtime/`                           | Playwright collects real pages, errors, responses, links, and forms; Python runtime rules analyze this evidence | `python -m runtime http://localhost:3000 --preflight-only` |
-| Backend — `backend/`                          | Actual deduplication, prioritization, and Markdown reporting functions process live findings                    | `npm run backend:demo` (mock demo only)                    |
-| Giovanni — `modules/compliance/`              | Actual checker receives observed text and links; results are policy-discoverability signals                     | `npm run compliance:demo` (sample inputs only)             |
-| Jaimin — `.agents/skills/static-code-analysis/` | A bounded source analyzer implements the supplied import, cleanup, and resource checks; opt-in            | Skill instructions remain available                        |
+| Contribution                                    | Dashboard integration                                                                                           | Standalone command                                         |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Anvith — `runtime/`                             | Playwright collects real pages, errors, responses, links, and forms; Python runtime rules analyze this evidence | `python -m runtime http://localhost:3000 --preflight-only` |
+| Backend — `backend/`                            | Actual deduplication, prioritization, and Markdown reporting functions process live findings                    | `npm run backend:demo` (mock demo only)                    |
+| Giovanni — `modules/compliance/`                | Actual checker receives observed text and links; results are policy-discoverability signals                     | `npm run compliance:demo` (sample inputs only)             |
+| Jaimin — `.agents/skills/static-code-analysis/` | A bounded source analyzer implements the supplied import, cleanup, and resource checks; opt-in                  | Skill instructions remain available                        |
 
 The runtime crawl visits at most six same-origin pages in 60 seconds. Missing policy links, security headers, and static heuristics are review items, not automatically confirmed vulnerabilities or legal conclusions. Missing Python marks the runtime module unavailable and records a coverage gap.
 
@@ -269,13 +274,13 @@ Screenshots and traces, stronger functional verifiers, minimized reproductions, 
 
 ## Teammate Modules
 
-The repository combines the dashboard with independently runnable teammate contributions. **Deploy Ghosts still runs the original three QA personas. The modules below are preserved and runnable but are not yet wired into that dashboard or its bug reports.**
+The repository combines the dashboard with independently runnable teammate contributions. **Bundled demo runs use the original three QA personas; website audits use roles tailored to the observed site. The modules below are preserved and runnable but are not yet wired into that dashboard or its bug reports.**
 
-| Contribution                      | Location                                     | Run from repository root                                          |
-| --------------------------------- | -------------------------------------------- | ----------------------------------------------------------------- |
-| Anvith's Python runtime inspector | `runtime/`                                   | `python -m runtime http://localhost:3000 --preflight-only`        |
-| Backend orchestration starter     | `backend/`                                   | `npm run backend:demo` (mock findings, not a live scanner)        |
-| Giovanni's compliance checker     | `modules/compliance/`                        | `npm run compliance:demo` (sample signals, heuristic checks)      |
+| Contribution                      | Location                                       | Run from repository root                                          |
+| --------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------- |
+| Anvith's Python runtime inspector | `runtime/`                                     | `python -m runtime http://localhost:3000 --preflight-only`        |
+| Backend orchestration starter     | `backend/`                                     | `npm run backend:demo` (mock findings, not a live scanner)        |
+| Giovanni's compliance checker     | `modules/compliance/`                          | `npm run compliance:demo` (sample signals, heuristic checks)      |
 | Jaimin's static-analysis skill    | `.agents/skills/static-code-analysis/SKILL.md` | Instructions for a compatible skill runner; no CLI implementation |
 
 The runtime inspector needs its own Python dependencies. Use a virtual environment:

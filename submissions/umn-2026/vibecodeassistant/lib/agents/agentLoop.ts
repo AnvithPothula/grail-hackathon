@@ -7,12 +7,12 @@ import { detectIssue } from "@/lib/qa/issueDetector";
 import { reflectIssue } from "@/lib/qa/genericIssue";
 import { reproduceIssue } from "@/lib/qa/reproduceIssue";
 import { bugReport } from "@/lib/qa/bugReporter";
-import { showWatchStatus } from "@/lib/browser/watchStatus";
+import { showWatchStatus, showWatchResults } from "@/lib/browser/watchStatus";
 import { runModules, moduleState } from "@/lib/audit/pipeline";
 import { addFindings, fromBug } from "@/lib/audit/findings";
 import { redact } from "@/lib/security/redact";
 import { decide } from "./decisionAgent";
-import { websiteDecision, planGoals, actionAllowed } from "./websiteDecision";
+import { websiteDecision, planWebsiteGhosts, actionAllowed } from "./websiteDecision";
 import type {
   GhostState,
   RunState,
@@ -21,6 +21,9 @@ import type {
 } from "@/lib/types";
 const pause = (watch = false) =>
   new Promise((r) => setTimeout(r, watch ? 1500 : 650));
+const watchStore = globalThis as typeof globalThis & {
+  ghostWatchBrowser?: Browser;
+};
 export function log(
   run: RunState,
   g: GhostState,
@@ -46,7 +49,12 @@ async function investigate(
   g.candidateIssues.push(issue);
   g.status = "investigating";
   if (run.watch)
-    await showWatchStatus(page, g.persona, "INVESTIGATING", issue.title);
+    await showWatchStatus(
+      page,
+      g.persona,
+      "TEST MISMATCH",
+      `${issue.title}\nExpected: ${issue.expectedBehavior}\nObserved: ${issue.observedBehavior}`,
+    );
   log(run, g, "DECISION", `Potential issue: ${issue.title}`);
   await pause(run.watch);
   g.status = "reproducing";
@@ -91,6 +99,8 @@ async function investigate(
   await pause(run.watch);
 }
 export async function runGhost(browser: Browser, run: RunState, g: GhostState) {
+  g.visitedUrls = [];
+  g.decisionModes = {};
   const context = await browser.newContext({ serviceWorkers: "block" });
   try {
     await confineToTarget(context, run);
@@ -108,11 +118,13 @@ export async function runGhost(browser: Browser, run: RunState, g: GhostState) {
       if (r.request().isNavigationRequest() && r.frame() === page.mainFrame())
         status = r.status();
     });
-    const capture = async (): Promise<Observation> => ({
-      ...(await observePage(page)),
-      status,
-      pageErrors: [...pageErrors],
-    });
+    const capture = async (): Promise<Observation> => {
+      const observation = await observePage(page);
+      g.currentUrl = observation.url;
+      if (!g.visitedUrls!.includes(observation.url))
+        g.visitedUrls!.push(observation.url);
+      return { ...observation, status, pageErrors: [...pageErrors] };
+    };
     await page.goto(run.target, {
       waitUntil: "domcontentloaded",
       timeout: 20000,
@@ -144,6 +156,7 @@ export async function runGhost(browser: Browser, run: RunState, g: GhostState) {
           ? await decide(g, before)
           : await websiteDecision(g, before, run);
       g.mode = decision.mode;
+      g.decisionModes[decision.mode] = (g.decisionModes[decision.mode] || 0) + 1;
       if (decision.notice) log(run, g, "MODE", decision.notice);
       const a = decision.action;
       g.lastAction = a.reasoningSummary;
@@ -158,7 +171,18 @@ export async function runGhost(browser: Browser, run: RunState, g: GhostState) {
         await pause(true);
       }
       if (a.type === "complete") {
+        g.outcome = redact(a.outcome);
+        g.stopReason = `Completion decision (${decision.mode})`;
         log(run, g, "COMPLETE", a.outcome);
+        if (run.watch) {
+          await showWatchStatus(
+            page,
+            g.persona,
+            "GHOST COMPLETE",
+            `${a.outcome}\n${g.candidateIssues.filter((i) => i.verification === "confirmed").length} reproduced issue(s). Full reports are on the dashboard.`,
+          );
+          await page.waitForTimeout(3500);
+        }
         break;
       }
       const { reasoningSummary: _summary, ...operation } = a;
@@ -170,6 +194,8 @@ export async function runGhost(browser: Browser, run: RunState, g: GhostState) {
       const count = (repetitions.get(fingerprint) || 0) + 1;
       repetitions.set(fingerprint, count);
       if (count > 2) {
+        g.outcome = "Stopped after the same action was proposed repeatedly on an unchanged page. The goal may be unfinished.";
+        g.stopReason = "Repeated action without progress";
         run.gaps.push(
           `${g.persona}: stopped repeated actions without progress.`,
         );
@@ -240,17 +266,26 @@ export async function runGhost(browser: Browser, run: RunState, g: GhostState) {
         run.profile === "demo"
           ? detectIssue(g, before, after)
           : await reflectIssue(g, before, after);
+      if (!issue) {
+        const detail =
+          "No new contradiction established by the evidence checks for this action. Exploration continues; this is not an exhaustive pass.";
+        log(run, g, "CHECK", detail);
+        if (run.watch)
+          await showWatchStatus(page, g.persona, "EVIDENCE CHECK", detail);
+      }
       if (issue) await investigate(browser, run, g, issue, page);
       previous = before;
     }
     if (
       !run.activity.some((e) => e.ghostId === g.id && e.phase === "COMPLETE")
     ) {
+      g.outcome ||= "The exploration limit was reached. Unvisited flows remain untested.";
+      g.stopReason ||= Date.now() >= deadline ? "Time limit reached" : "12-decision limit reached";
       log(
         run,
         g,
         "COMPLETE",
-        "Exploration budget reached; unvisited flows are not marked passed.",
+        g.outcome,
       );
       run.gaps.push(
         `${g.persona}: bounded exploration ended before exhaustive coverage.`,
@@ -258,6 +293,8 @@ export async function runGhost(browser: Browser, run: RunState, g: GhostState) {
     }
   } catch (e) {
     g.error = redact(e instanceof Error ? e.message : "Ghost failed");
+    g.outcome = "Exploration could not finish: " + g.error;
+    g.stopReason = "Browser or execution error";
     log(run, g, "ERROR", g.error);
     run.gaps.push(`${g.persona}: ${g.error}`);
   } finally {
@@ -268,8 +305,13 @@ export async function runGhost(browser: Browser, run: RunState, g: GhostState) {
 }
 export async function executeRun(run: RunState) {
   let browser: Browser | undefined;
+  let backgroundBrowser: Browser | undefined;
   try {
+    await watchStore.ghostWatchBrowser?.close().catch(() => {});
+    watchStore.ghostWatchBrowser = undefined;
     browser = await launchBrowser(run.watch);
+    if (run.watch) backgroundBrowser = await launchBrowser(false);
+    const inspectorBrowser = backgroundBrowser || browser;
     if (run.profile === "website") {
       moduleState(
         run,
@@ -277,7 +319,9 @@ export async function executeRun(run: RunState) {
         "running",
         "Observing the landing page to tailor goals to the actual website.",
       );
-      const context = await browser.newContext({ serviceWorkers: "block" });
+      const context = await inspectorBrowser.newContext({
+        serviceWorkers: "block",
+      });
       try {
         await confineToTarget(context, run);
         const page = await context.newPage();
@@ -285,30 +329,20 @@ export async function executeRun(run: RunState) {
           waitUntil: "domcontentloaded",
           timeout: 20000,
         });
-        const goals = await planGoals(run, await observePage(page));
+        const plan = await planWebsiteGhosts(run, await observePage(page));
         run.ghosts.forEach((g, i) => {
-          g.goal = goals[i];
-          g.personality = [
-            "Follows visible navigation and compares onboarding promises with actual outcomes.",
-            "Explores primary workflows quickly and checks navigation and state consistency.",
-            "Tests reasonable boundaries and visible error handling, within the permitted actions.",
-          ][i];
+          const role = plan.ghosts[i];
+          g.persona = redact(role.name);
+          g.goal = redact(role.goal);
+          g.personality = redact(role.personality);
+          log(run, g, "PLAN", `${plan.mode}. Goal: ${g.goal}`);
         });
-        moduleState(
-          run,
-          "planner",
-          "complete",
-          run.gaps.some((g) => g.includes("AI goal planning failed"))
-            ? "AI planning failed; generic goals were used."
-            : hasModelCredentials()
-              ? "AI goals tailored to the landing page."
-              : "Generic goals selected; AI planning is unavailable without an API key.",
-        );
+        moduleState(run, "planner", "complete", plan.mode);
       } finally {
         await context.close();
       }
     }
-    const audit = runModules(browser, run).catch((e) =>
+    const audit = runModules(inspectorBrowser, run).catch((e) =>
       run.gaps.push(
         `Module pipeline failed: ${e instanceof Error ? e.message : "Unknown error"}`,
       ),
@@ -342,6 +376,23 @@ export async function executeRun(run: RunState) {
         m.summary = "Run could not complete; this check is not marked passed.";
       }
   } finally {
+    await backgroundBrowser?.close();
+    if (run.watch && browser && browser.isConnected()) {
+      try {
+        await showWatchResults(browser, run);
+        watchStore.ghostWatchBrowser = browser;
+        const finishedBrowser = browser;
+        const closeTimer = setTimeout(() => {
+          void finishedBrowser.close();
+          if (watchStore.ghostWatchBrowser === finishedBrowser)
+            watchStore.ghostWatchBrowser = undefined;
+        }, 120000);
+        closeTimer.unref();
+        browser = undefined;
+      } catch {
+        /* Preserve dashboard reports even if the presentation window fails. */
+      }
+    }
     await browser?.close();
   }
 }

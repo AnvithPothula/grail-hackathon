@@ -30,6 +30,27 @@ for (const bug of run.bugs) {
   assert.ok(bug.executionLog.some((e) => e.phase === "REPRODUCTION"));
   assert.ok(bug.executionLog.some((e) => e.phase === "VERIFY"));
 }
+if (!process.env.SINGLE_GHOST) {
+  const signup = run.bugs.find((b) => /password.*minimum/i.test(b.title));
+  assert.ok(signup, "Short-password signup report is missing.");
+  const passwordLength = Number(
+    signup.observedBehavior.match(/(\d+)-character/)?.[1],
+  );
+  assert.ok(passwordLength > 0 && passwordLength < 8, signup.observedBehavior);
+  assert.ok(run.bugs.some((b) => /cart total/i.test(b.title)));
+  assert.ok(run.bugs.some((b) => /empty submission/i.test(b.title)));
+  assert.ok(
+    !run.findings.some(
+      (f) =>
+        f.source === "runtime-scanner" && f.ruleId === "password-in-get-form",
+    ),
+    "The React demo produced a false native GET password report.",
+  );
+  assert.ok(
+    run.ghosts.every((g) => !g.error),
+    "A demo ghost reported an execution error.",
+  );
+}
 console.log(
   JSON.stringify(
     {

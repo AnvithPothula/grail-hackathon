@@ -7,13 +7,14 @@ export async function modelCall<T extends z.ZodTypeAny>(
   name: string,
   prompt: string,
   payload: unknown,
+  options: { timeoutMs?: number } = {},
 ): Promise<z.infer<T>> {
   const config = providerConfig();
   if (!config.apiKey) throw new Error("AI provider API key is not configured.");
   const client = new OpenAI({
     apiKey: config.apiKey,
     baseURL: config.baseURL,
-    timeout: 20000,
+    timeout: options.timeoutMs || 20000,
     maxRetries: 0,
   });
   for (let attempt = 0; attempt < 2; attempt++)

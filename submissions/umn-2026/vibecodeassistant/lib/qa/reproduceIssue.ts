@@ -83,6 +83,15 @@ export async function reproduceIssue(
       await replayAction(page, record);
       replayGhost.actions.push(record);
       final = await capture();
+      if (run.watch) {
+        await showWatchStatus(
+          page,
+          ghost.persona,
+          "REPLAY RESULT",
+          final.visibleText.replace(/\n/g, " · ").slice(-400),
+        );
+        await page.waitForTimeout(700);
+      }
       if (
         run.profile === "demo" &&
         detectIssue(replayGhost, before, final)?.kind === issue.kind

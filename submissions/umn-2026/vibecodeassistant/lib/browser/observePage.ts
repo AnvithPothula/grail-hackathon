@@ -8,6 +8,13 @@ export async function observePage(page: Page): Promise<Observation> {
         "a[href],button,input:not([type=hidden]),textarea,select,[role=button],[role=tab]",
       ),
     );
+    const banner = document.getElementById("ghostqa-watch-banner");
+    const bannerDisplay = banner?.style.display;
+    if (banner) banner.style.display = "none";
+    const visibleText = (
+      document.querySelector("main")?.innerText || document.body.innerText
+    ).slice(0, 6500);
+    if (banner) banner.style.display = bannerDisplay || "";
     const interactiveElements = elements
       .filter(
         (el) =>
@@ -64,9 +71,7 @@ export async function observePage(page: Page): Promise<Observation> {
     return {
       url: location.href,
       pageTitle: document.title,
-      visibleText: (
-        document.querySelector("main")?.innerText || document.body.innerText
-      ).slice(0, 6500),
+      visibleText,
       interactiveElements,
     };
   });

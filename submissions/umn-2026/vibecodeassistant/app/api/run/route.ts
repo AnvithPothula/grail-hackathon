@@ -25,7 +25,9 @@ export async function POST(request: NextRequest) {
     if (
       body.profile === "demo" &&
       (!localHost(target.hostname) ||
-        target.origin !== server.origin ||
+        !localHost(server.hostname) ||
+        target.protocol !== server.protocol ||
+        target.port !== server.port ||
         target.pathname !== "/demo" ||
         target.search ||
         target.hash ||
@@ -109,7 +111,9 @@ export async function POST(request: NextRequest) {
       startedAt: new Date().toISOString(),
     };
     if (body.profile === "website")
-      run.ghosts.forEach((g) => {
+      run.ghosts.forEach((g, i) => {
+        g.persona = `Website ghost ${i + 1} · planning role`;
+        g.personality = "Waiting for the target landing page.";
         g.goal = "Waiting for a goal based on the target website.";
       });
     runs.set(run.id, run);
